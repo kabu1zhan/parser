@@ -1,9 +1,9 @@
 import tkinter as tk
-import json, requests, time, datetime
+import json, requests, time, datetime, multiprocessing
 from tkinter import *
 from tkinter import messagebox
-token = '7e04d8f1ad225832d1b42835499a5c65b8c46a3cab83cd25a9cb2f2d87542b8927d3e61133d23c13c02bc'
 
+token = '7e04d8f1ad225832d1b42835499a5c65b8c46a3cab83cd25a9cb2f2d87542b8927d3e61133d23c13c02bc'
 v = 5.92
 
 import threading
@@ -60,6 +60,7 @@ class Data(Thread):
         self.j = 24
         self.s = 0
         self.domain_name = ''
+        self.stopped = False
 
     def terminate(self):
         on['text'] = 'Полный анализ - выкл'
@@ -112,18 +113,193 @@ class Data(Thread):
             messagebox.showerror(title='Ошибка', message='В посте находится неотображаемый символ')
 
     def stop_threads_potok(self):
-        self.stop_threads=True
+        self.stopped = True
 
     def set_domain(self):
         self.domain_name = domain.get()
         domain_label['text'] = self.domain_name
+
+
+
+class Test():
+    def get_count(self):
+        get_count = requests.get(
+            'https://api.vk.com/method/users.search',
+            params={
+                'access_token': token,
+                'v': v,
+                'city': 730,
+                'country': 4,
+                'count': 5
+            }
+        )
+        time.sleep(1)
+        data = get_count.json()
+        return data
+
+    def get_comment(self, i):
+        return data
+
+
+def users_add():
+    a = Test()
+    count = a.get_count()
+    time.sleep(1)
+    len = int(count['response']['count'])
+    print(len)
+    for i in range(1, len):
+        print(i)
+        try:
+            response = requests.get(
+                'https://api.vk.com/method/users.search',
+                params={
+                    'access_token': token,
+                    'v': v,
+                    'city': 730,
+                    'country': 4,
+                    'count': 1,
+                    'offset': i,
+                    'fields': 'sex, nickname, domain, city, country, photo_id, status'
+                }
+            )
+            time.sleep(1)
+            data = response.json()
+            datas = data['response']['items'][0]
+            data = {}
+            data["user_id"] = datas['id']
+            data["first_name"] = datas['first_name']
+            data['last_name'] = datas['last_name']
+            data["is_closed"] = datas['is_closed']
+            if data['is_closed'] is False:
+                data['sex'] = datas['sex']
+                data["nickname"] = datas['nickname']
+                data["domain"] = datas['domain']
+                data["photo"] = datas['photo_id'] or ''
+                data["status"] = datas['status']
+            else:
+                data['sex'] = ''
+                data["nickname"] = ''
+                data["domain"] = ''
+                data["photo"] = ''
+                data["status"] = ''
+            data["city"] = 'Taraz'
+            data["county"] = 'Kz'
+            data["checked"] = False
+        except: pass
+        try:
+            new_response = requests.post(
+                'http://localhost:8000/vk/user/add',
+                data=data,
+            )
+            get_groups(datas['id'])
+            new_response = requests.put(
+                'http://localhost:8000/vk/user/add',
+                data={"user_id": datas['id'], "checked": True},
+            )
+        except: pass
+
+
+def getUsers():
+    response = requests.get(
+        'http://localhost:8000/vk/user/add'
+    )
+    data = response.json()
+    return data
+
+
+def get_groups(user_id):
+    response = requests.get(
+        'https://api.vk.com/method/groups.get',
+        params={
+            'access_token': token,
+            'v': 5.131,
+            'user_id': user_id,
+            'extended': 1
+        }
+    )
+    time.sleep(1)
+    groups = response.json()
+    id_groups = groups['response']['items']
+    group_list = []
+    for i in id_groups:
+        print(i['screen_name'])
+        passed = 0
+        try:
+            response = requests.get(
+                'https://api.vk.com/method/wall.get',
+                params={
+                    'access_token': token,
+                    'v': v,
+                    'domain': i['screen_name'],
+                    'count': 1
+                }
+            )
+            bad = requests.get(f"http://127.0.0.1:8000/vk/auth/{i['screen_name']}/analyze/detail/bad")
+            pre_data = response.json()
+            time.sleep(1)
+            count = pre_data['response']['count']
+            for z in range(1, count, 5):
+                if passed < 10:
+                    try:
+                        print(int(pre_data['response']['items'][0]['owner_id']))
+                        print(user_id)
+                        print(z)
+                        response = requests.get(
+                            'https://api.vk.com/method/execute.getCommentGroup',
+                            params={
+                                'access_token': token,
+                                'v': 5.131,
+                                'owner_id': int(pre_data['response']['items'][0]['owner_id']),
+                                'user_id': user_id,
+                                'post_count': 5,
+                                'offset': z
+                            }
+                        )
+                        time.sleep(5)
+                        comments = response.json()
+                        print(comments)
+                        for comment in comments['response']:
+                            print(comment)
+                            requests.post(
+                                'http://localhost:8000/vk/auth/comment/add',
+                                data={"number": comment['id'], "from_id": comment['from_id'], 'post_id': comment['post_id'],
+                                      'date': set_time(time=comment['date']), 'text': comment['text'], 'likes': 0, 'domain': i['screen_name']}
+                            )
+                            commen_data = comment['text']
+                            comment_words = set(commen_data.lower().split()) & set(bad.json()['bad'])
+                            if len(comment_words) > 1:
+                                info.insert(1.0, f'{comment}: {comment_words}\n')
+                                requests.post(f"http://127.0.0.1:8000/vk/auth/bad_data/add",
+                                              data={'number': comment['number'],
+                                                    'bad_word': comment_words,
+                                                    'text': comment['text'],
+                                                    'user': comment['from_id']}
+                                              )
+                    except Exception as e: passed += 1
+            group_list.append(i['screen_name'])
+        except: pass
+    try:
+        requests.post(
+            'http://localhost:8000/vk/group/add',
+            data={"user_id": user_id, "group": group_list}
+        )
+    except: pass
+
+def set_time(time):
+    timestamp = datetime.datetime.fromtimestamp(time)
+    return timestamp.strftime('%Y-%m-%d %H:%M:%S')
+
+def fast_start():
+    users_add()
+
 
 app = tk.Tk()
 app.title('Мониторинг социальной сети Вконтакте')
 app.geometry('1080x500')
 app.resizable(width=False, height=False)
 data = Data()
-ttt = Thread(target=data.run)
+ttt = multiprocessing.Process(target=data.run)
+sss = multiprocessing.Process(target=fast_start)
 frame = Frame(app)
 frame.place(relwidth=1, relheight=1)
 
@@ -141,7 +317,7 @@ button_id = Button(frame, command=data.set_domain, text="Установить д
 button_id.grid(row=6, column=3, stick='nswe')
 button_send = Button(frame, command=ttt.start, text="Начать захват данных")
 button_send.grid(row=2, column=0, stick='nswe')
-button_stop = Button(frame, command=data.terminate, text="Остановить захват данных")
+button_stop = Button(frame, command=sss.start, text="Автоматический режим работы")
 button_stop.grid(row=3, column=3, stick='ns')
 domain = Entry(frame, bg='white')
 domain.grid(row=1, column=0, stick='we')
@@ -160,6 +336,7 @@ nex.grid(row=5, column=0, stick='nswe')
 page2 = Frame(app)
 page2.place(relwidth=1, relheight=1)
 page2.lower()
+
 
 def to2_page():
     frame.lower()
@@ -238,13 +415,130 @@ class Page(Thread):
 to_next = Button(frame, command=to2_page, text="Перейти к анализу данных")
 to_next.grid(row=4, column=3, stick='nswe')
 
+def get_groups_to_user():
+    user_id = int(user_label['text'])
+    response = requests.get(
+        'https://api.vk.com/method/groups.get',
+        params={
+            'access_token': token,
+            'v': 5.131,
+            'user_id': user_id,
+            'extended': 1
+        }
+    )
+    time.sleep(1)
+    groups = response.json()
+    id_groups = groups['response']['items']
+    group_list = []
+    for i in id_groups:
+        passed = 0
+        response = requests.get(
+            'https://api.vk.com/method/wall.get',
+            params={
+                'access_token': token,
+                'v': 5.131,
+                'owner_id': f"-{(i['id'])}",
+                'count': 5
+            }
+        )
+        bad = requests.get(f"http://127.0.0.1:8000/vk/auth/{i['screen_name']}/analyze/detail/bad")
+        pre_data = response.json()
+        time.sleep(1)
+        count = pre_data['response']['count']
+        for z in range(1, count, 5):
+            if passed < 10:
+                response = requests.get(
+                    'https://api.vk.com/method/execute.getCommentGroup',
+                    params={
+                        'access_token': token,
+                        'v': 5.131,
+                        'owner_id': int(pre_data['response']['items'][0]['owner_id']),
+                        'user_id': user_id,
+                        'post_count': 5,
+                        'offset': z
+                    }
+                )
+                time.sleep(5)
+                comments = response.json()
+                for comment in comments['response']:
+                    print(comment)
+                    requests.post(
+                        'http://localhost:8000/vk/auth/comment/add',
+                        data={"number": comment['id'], "from_id": comment['from_id'], 'post_id': comment['post_id'],
+                              'date': set_time(time=comment['date']), 'text': comment['text'], 'likes': 0, 'domain': i['screen_name']}
+                    )
+                    commen_data = comment['text']
+                    comment_words = set(commen_data.lower().split()) & set(bad.json()['bad'])
+                    print(len(comment_words))
+                    if len(comment_words) >= 1:
+                        print(True)
+                        info_2.delete(1.0, END)
+                        info_2.insert(1.0, f'{comment}: {comment_words}\n')
+                        requests.post(f"http://127.0.0.1:8000/vk/auth/bad_data/add",
+                                      data={'number': comment['id'],
+                                            'bad_word': comment_words,
+                                            'text': comment['text'],
+                                            'user': comment['from_id']}
+                                      )
+        group_list.append(i['screen_name'])
+    try:
+        requests.post(
+            'http://localhost:8000/vk/group/add',
+            data={"user_id": user_id, "group": group_list}
+        )
+    except: pass
+
+
+def users_add_only():
+    response = requests.get(
+        'https://api.vk.com/method/users.get',
+        params={
+            'access_token': token,
+            'v': v,
+            'user_ids': user_label['text'],
+            'fields': 'sex, nickname, domain, city, country, photo_id, status'
+        }
+    )
+    data = response.json()
+    datas = data['response'][0]
+    data = {}
+    data["user_id"] = datas['id']
+    data["first_name"] = datas['first_name']
+    data['last_name'] = datas['last_name']
+    data["is_closed"] = datas['is_closed']
+    if data['is_closed'] is False:
+        data['sex'] = datas['sex']
+        data["nickname"] = datas['nickname']
+        data["domain"] = datas['domain']
+        data["photo"] = None
+        data["status"] = datas['status']
+    else:
+        data['sex'] = ''
+        data["nickname"] = ''
+        data["domain"] = ''
+        data["photo"] = ''
+        data["status"] = ''
+    data["city"] = 'Taraz'
+    data["county"] = 'Kz'
+    data["checked"] = False
+    new_response = requests.post(
+        'http://localhost:8000/vk/user/add',
+        data=data,
+    )
+    get_groups_to_user()
+    # new_response = requests.put(
+    #     'http://localhost:8000/vk/user/add',
+    #     data={"user_id": datas['id'], "checked": True},
+    # )
+
+
 new_data = Page()
 t = Thread(target=new_data.run)
 def terminate():
     time.sleep(0.6)
     t.terminate()
     t.join()
-
+zzz = Thread(target=users_add_only)
 start_fast_analyze = Button(page2, command=new_data.fast_analyze, text="Латентно-семантический анализ\n постов")
 start_fast_analyze.grid(row=0, column=0, stick='nswe')
 
@@ -257,9 +551,6 @@ start_slov_analyze.grid(row=2, column=0, stick='nswe')
 start_slov_analyze = Button(page2, command=terminate, text="Остановить полный анализ")
 start_slov_analyze.grid(row=3, column=0, stick='nswe')
 
-complex = Button(page2, text="Комплексный анализ")
-complex.grid(row=4, column=0, stick='nswe')
-
 back = Button(page2, command=to1_page, text="Вернуться назад")
 back.grid()
 
@@ -269,6 +560,19 @@ info_2.grid(row=0, column=1, rowspan=6, stick='we')
 on = Label(page2, text='Полный анализ - выкл')
 on.grid(row=0, column=2, stick='we')
 
+
+def set_domain():
+    user_label['text'] = domain_user.get()
+
+
+button_user = Button(page2, command=set_domain, text="Установить юзера")
+button_user.grid(row=4, column=2, stick='nswe')
+domain_user = Entry(page2, bg='white')
+domain_user.grid(row=5, column=2, stick='we')
+user_label = Label(page2, text="User:", font=40)
+user_label.grid(row=6, column=2, stick='we')
+complex = Button(page2, command=zzz.start, text="Комплексный анализ юзера")
+complex.grid(row=4, column=0, stick='nswe')
 page3 = Frame(app)
 page3.place(relwidth=1, relheight=1)
 page3.lower()

@@ -18,7 +18,8 @@ class Group(models.Model):
 class Comments(models.Model):
     number = models.IntegerField(unique=True)
     from_id = models.IntegerField()
-    post_id = models.ForeignKey(Group, to_field='number', on_delete=models.CASCADE, related_name='relate_post')
+    post_id = models.ForeignKey(Group, to_field='number', on_delete=models.CASCADE, related_name='relate_post', null=True)
+    post_base = models.IntegerField(null=True, blank=True)
     date = models.DateTimeField()
     text = models.TextField()
     likes = models.IntegerField()
@@ -26,17 +27,23 @@ class Comments(models.Model):
 
 
 class User(models.Model):
-    user_id = models.IntegerField()
+    user_id = models.IntegerField(unique=True)
     first_name = models.TextField()
     last_name = models.TextField()
     is_closed = models.BooleanField()
     sex = models.CharField(max_length=5)
-    nickname = models.TextField()
-    domain = models.TextField()
-    city = models.TextField()
-    county = models.TextField()
-    photo = models.TextField()
-    status = models.TextField()
+    nickname = models.TextField(null=True, blank=True)
+    domain = models.TextField(null=True, blank=True)
+    city = models.TextField(null=True, blank=True)
+    county = models.TextField(null=True, blank=True)
+    photo = models.TextField(null=True, blank=True)
+    status = models.TextField(null=True, blank=True)
+    checked = models.BooleanField()
+
+
+class GroupListUser(models.Model):
+    user = models.ForeignKey(User, to_field='user_id', on_delete=models.CASCADE, unique=True)
+    group = models.TextField()
 
 
 class BadWord(models.Model):

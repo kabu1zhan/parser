@@ -23,4 +23,6 @@ urlpatterns = [
     path('auth/group/add', views.AddGroup.as_view()),
     path('auth/comment/add', views.AddComment.as_view()),
 
+    path('user/add', views.AddUserApi.as_view()),
+    path('group/add', views.GroupApi.as_view())
 ]

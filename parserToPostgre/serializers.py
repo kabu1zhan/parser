@@ -46,3 +46,6 @@ class BadDataSerializer(ModelSerializer):
 
 class ValuesSerializer(Serializer):
     varianty = serializers.CharField()
+
+class IdSerializer(Serializer):
+    user_id = serializers.IntegerField()

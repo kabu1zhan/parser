@@ -307,16 +307,24 @@ class BadData(APIView):
     def post(self, request, *args, **kwargs):
         serializer = BadDataSerializer(data=request.data)
         if serializer.is_valid():
+            print(serializer.validated_data)
             serializer.save()
             return Response({'result': True})
 
 
 class AddComment(APIView):
     def post(self, request):
-        serializer = CommentSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
+        a = Comments.objects.create(
+            number=request.data['number'],
+            from_id=request.data['from_id'],
+            post_id_id=None,
+            post_base=request.data['post_id'],
+            date=request.data['date'],
+            text=request.data['text'],
+            likes=request.data['likes'],
+            domain=request.data['domain'],
+        )
+        return Response({'result': True})
 
 
 class AddGroup(APIView):
@@ -325,3 +333,44 @@ class AddGroup(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
+
+
+class AddUserApi(APIView):
+    def post(self, request):
+        datas = request.data
+        User.objects.create(
+            user_id=datas['user_id'],
+            first_name=datas['first_name'],
+            last_name=datas['last_name'],
+            is_closed=datas['is_closed'],
+            sex=datas['sex'],
+            nickname=datas['nickname'],
+            domain=datas['domain'],
+            city=datas['city'],
+            county=datas['county'],
+            photo=None,
+            status=datas['status'],
+            checked=False
+        )
+        return Response({'result': True})
+
+    def get(self, request):
+        queryset = User.objects.filter(is_closed=True).values('user_id')
+        serializer = IdSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def put(self, request):
+        user = User.objects.get(user_id=request.data['user_id'])
+        user.checked = True
+        user.save()
+        return Response({'result': True})
+
+
+class GroupApi(APIView):
+    def post(self, request):
+        print(dict(request.data)['group'])
+        models.GroupListUser.objects.create(
+            user_id=request.data['user_id'],
+            group=dict(request.data)['group']
+        )
+        return Response({'result': True})
