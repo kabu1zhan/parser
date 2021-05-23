@@ -290,7 +290,7 @@ class AddBadWord(APIView):
             for j in slovo.lexeme:
                 other.append(j[0])
             try:
-                models.BadWord.objects.create(slovo=i, varianty=other)
+                models.BadWord.objects.create(slovo=i, varianty=str(other))
             except:
                 return Response({'Error': 'Это слово уже добавленно'})
         return Response({'Post': other})

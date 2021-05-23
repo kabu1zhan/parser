@@ -48,7 +48,7 @@ class GroupListUser(models.Model):
 
 class BadWord(models.Model):
     slovo = models.TextField(unique=True)
-    varianty = models.JSONField()
+    varianty = models.TextField()
 
 
 class BadData(models.Model):
