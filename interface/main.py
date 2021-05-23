@@ -552,7 +552,7 @@ start_slov_analyze = Button(page2, command=terminate, text="Остановить
 start_slov_analyze.grid(row=3, column=0, stick='nswe')
 
 back = Button(page2, command=to1_page, text="Вернуться назад")
-back.grid()
+back.grid(row=7, column=2, stick='nswe')
 
 info_2 = Text(page2)
 info_2.grid(row=0, column=1, rowspan=6, stick='we')
