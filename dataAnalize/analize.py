@@ -100,7 +100,7 @@ words=10
 
 
 def start(filename):
-    document_list,titles=load_data("",f"/home/kabiljan/PycharmProjects/diplom/diplom/{filename}.txt")
+    document_list,titles=load_data("",f"{filename}.txt")
     clean_text=preprocess_data(document_list)
     model=create_gensim_lsa_model(clean_text,number_of_topics,words)
     start,stop,step=2,12,1

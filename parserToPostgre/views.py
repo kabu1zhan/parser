@@ -1,5 +1,8 @@
 import time, ast
 import pymorphy2
+from django.contrib.auth import authenticate
+from django.http import JsonResponse
+from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from . import models
@@ -73,8 +76,12 @@ class VkAuth(APIView):
                     domain=domain,
                     from_id=parsed_data['from_id']
                 )
-                for j in range(1, parsed_data['comments']['count']):
+                print(parsed_data['comments']['count'])
+                print(type(parsed_data['comments']['count']))
+                for j in range(0, parsed_data['comments']['count']):
+                    print('start')
                     comment = self.get_comment(parsed_data['id'], j, parsed_data['owner_id'])
+                    print(comment)
                     parsed_comment = comment['response']['items'][0]
                     models.Comments.objects.create(
                         number=parsed_comment['id'],
@@ -374,3 +381,21 @@ class GroupApi(APIView):
             group=dict(request.data)['group']
         )
         return Response({'result': True})
+
+
+class User(APIView):
+    def post(self, request):
+        password = request.data.get('password')
+        login = request.data.get('login')
+        user = authenticate(username=login, password=password)
+        if user:
+            try:
+                user.auth_token.delete()
+            except Exception as e:
+                pass
+            Token.objects.create(user=user)
+            response = Response({"result": True, "token": user.auth_token.key})
+            print(response.data)
+            return response
+        else:
+            return JsonResponse({"result": False, "error": "Wrong Credentials"})
